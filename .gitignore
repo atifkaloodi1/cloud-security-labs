@@ -1,0 +1,32 @@
+# ---- OS / editor cruft ----
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+.*.swp
+.vscode/
+.idea/
+
+# ---- Credentials & secrets (never commit these) ----
+# AWS
+.aws/
+*.pem
+*.ppk
+credentials
+aws-exports.js
+*.tfvars
+
+# Generic secrets / env
+.env
+.env.*
+*.key
+*_secret*
+*_credentials*
+
+# ---- Terminfo / logs / temp ----
+*.log
+*.tmp
+tmp/
+
+# ---- Keep placeholder dirs but ignore their loose contents if needed ----
+# (screenshots and diagrams are tracked intentionally)
