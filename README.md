@@ -11,6 +11,7 @@ Completed as part of a Cyber Security Analyst diploma (cloud security module). T
 | # | Lab | Focus | Status |
 |---|---|---|---|
 | 02 | [Build a VPC and Launch a Web Server](lab-02-vpc-web-server/) | VPC design, public/private subnets, IGW & NAT routing, security groups, EC2 bootstrap | ✅ Complete |
+| 03 | [Introduction to Amazon EC2](lab-03-ec2-intro/) | EC2 lifecycle, termination/stop protection, monitoring & logs, security group firewall, resizing compute & storage | ✅ Complete |
 
 *More labs from the cloud security module will be added here as they're completed.*
 
