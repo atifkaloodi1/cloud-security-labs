@@ -10,7 +10,7 @@
 
 **Hands-on AWS labs from the CYB 222 cloud module — IAM, VPC, EC2, EBS, RDS, and Elastic Load Balancing with Auto Scaling.**
 
-Each lab folder contains a navy-themed write-up (Word + PDF), a task-by-task README with screenshots, and the AWS Academy grading result.
+Each lab folder contains a task-by-task README with screenshots, a navy-themed write-up (Word + PDF where available), and the AWS Academy grading result.
 
 </div>
 
@@ -18,9 +18,9 @@ Each lab folder contains a navy-themed write-up (Word + PDF), a task-by-task REA
 
 ## About
 
-This repository documents the AWS Academy **Cloud Foundations / Architecting** lab series completed as part of **CYB 222 — Linux Systems Administration & Security** at Willis College. Each lab is built and documented to the same standard: complete the lab in the AWS console, capture each task, then produce a professional write-up with a task reference, security insights, and the submission report.
+This repository documents the AWS Academy cloud lab series completed as part of **CYB 222 — Linux Systems Administration & Security** at Willis College. Each lab is built and documented to the same standard: complete the lab in the AWS console, capture each task, then produce a professional write-up with a task reference, security insights, and the submission report.
 
-The arc moves from identity and networking foundations up to a highly available, auto-scaled web tier — the final lab (Lab 6) is the capstone pattern that ties the compute, storage, and database labs together.
+The arc moves from networking foundations up to a highly available, auto-scaled web tier — the final lab (Lab 6) is the capstone pattern that ties the compute, storage, and database labs together. The broader module also covered **AWS IAM** (Lab 1) as its identity foundation.
 
 ---
 
@@ -28,14 +28,14 @@ The arc moves from identity and networking foundations up to a highly available,
 
 | # | Lab | Core AWS services | Score | Docs |
 |---|-----|-------------------|:-----:|:----:|
-| 1 | Introduction to AWS IAM | IAM users, groups, policies, roles | **100 / 100** | [`./lab-1`](./lab-1) |
-| 2 | Build your VPC and Launch a Web Server | VPC, subnets, route tables, IGW, EC2 | **83.33 / 100** | [`./lab-2`](./lab-2) |
-| 3 | Introduction to Amazon EC2 | EC2, AMIs, instance types, security groups | **100 / 100** | [`./lab-3`](./lab-3) |
-| 4 | Working with EBS | EBS volumes, snapshots, attach/detach | **100 / 100** | [`./lab-4`](./lab-4) |
-| 5 | Build a Database Server | Amazon RDS, Multi-AZ, DB security groups | **100 / 100** | [`./lab-5`](./lab-5) |
-| 6 | Scale & Load Balance your Architecture | ELB (ALB), EC2 Auto Scaling, CloudWatch | **100 / 100** | [`./lab-6`](./lab-6) |
+| 1 | Introduction to AWS IAM | IAM users, groups, policies, roles | **100 / 100** | — |
+| 2 | Build your VPC and Launch a Web Server | VPC, subnets, route tables, IGW, EC2 | **83.33 / 100** | [`lab-02-vpc-web-server`](./lab-02-vpc-web-server) |
+| 3 | Introduction to Amazon EC2 | EC2, AMIs, instance types, security groups | **100 / 100** | [`lab-03-ec2-intro`](./lab-03-ec2-intro) |
+| 4 | Working with EBS | EBS volumes, snapshots, attach/detach | **100 / 100** | [`lab-04-ebs-volumes`](./lab-04-ebs-volumes) |
+| 5 | Build a Database Server | Amazon RDS, Multi-AZ, DB security groups | **100 / 100** | [`lab-05-rds-multi-az`](./lab-05-rds-multi-az) |
+| 6 | Scale & Load Balance your Architecture | ELB (ALB), EC2 Auto Scaling, CloudWatch | **100 / 100** | [`lab-06-elb-auto-scaling`](./lab-06-elb-auto-scaling) |
 
-> Scores are AWS Academy gradebook results. **Five perfect scores of six**; Lab 2 (VPC) at 83.33 is the one open item — see its submission report for the specific sub-check.
+> Scores are AWS Academy gradebook results. **Five perfect scores of six**; Lab 2 (VPC) at 83.33 is the one open item. Lab 1 (IAM) was completed as part of the module but is not documented in this repo (the — in the Docs column).
 
 ---
 
@@ -60,7 +60,7 @@ The final lab assembles the earlier building blocks into the reference **web-tie
 - Uses immutable AMIs + a launch template so instances are reproducible and disposable.
 - Scales on CloudWatch CPU metrics via a target-tracking policy, bounded 2–6 instances.
 
-See [`./lab-6`](./lab-6) for the full walkthrough and the 35/35 submission report.
+See [`lab-06-elb-auto-scaling`](./lab-06-elb-auto-scaling) for the full walkthrough and the 35/35 submission report.
 
 ---
 
