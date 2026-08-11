@@ -1,169 +1,162 @@
+<div align="center">
+
+<img src="https://img.shields.io/badge/AWS-EC2-141824?style=for-the-badge&logo=amazonec2&logoColor=F5C96B" alt="AWS EC2"/>
+<img src="https://img.shields.io/badge/Lab-03-5DD0A7?style=for-the-badge" alt="Lab 03"/>
+<img src="https://img.shields.io/badge/CYB%20222-Willis%20College-1F2A44?style=for-the-badge" alt="CYB 222"/>
+<img src="https://img.shields.io/badge/Score-25%2F25-2E9E5B?style=for-the-badge" alt="Score 25/25"/>
+
 # Lab 3 — Introduction to Amazon EC2
 
-> Part of [**cloud-security-labs**](../README.md) — a collection of hands-on cloud security labs.
+**Launch · Monitor · Security Groups · Resize · Stop & Termination Protection**
 
-A hands-on walkthrough of the Amazon EC2 instance lifecycle: launching a web server with accidental-deletion safeguards, monitoring its health, using a security group to demonstrate firewall behaviour, resizing compute and storage, and testing stop protection. Where Lab 2 focused on the *network* around an instance, this lab focuses on the *instance itself* — how you launch, protect, observe, and resize it.
+`EC2` &nbsp;•&nbsp; `User Data` &nbsp;•&nbsp; `Security Groups` &nbsp;•&nbsp; `EBS Resize` &nbsp;•&nbsp; `Stop Protection`
 
-> **Context:** Completed as part of a Cyber Security Analyst diploma (cloud security module). The security angle here is operational: protecting instances from accidental loss (termination/stop protection), using security groups as least-privilege firewalls, and using logs and console output to verify what a server actually did on boot.
-
----
-
-## What Gets Built
-
-A single EC2 instance named `Web Server`, running Apache on Amazon Linux 2023, launched into a public subnet of the lab VPC and reachable over HTTP once its security group is opened.
-
-| Setting | Value |
-|---|---|
-| Instance name | `Web Server` |
-| AMI | Amazon Linux 2023 |
-| Instance type (initial) | `t2.micro` (1 vCPU, 1 GiB) |
-| Instance type (after resize) | `t2.small` (1 vCPU, 2 GiB) |
-| Key pair | vockey |
-| Network | Lab VPC → `PublicSubnet1` |
-| Security group | `Web Server security group` (HTTP inbound) |
-| Root volume (initial) | 8 GiB gp3 |
-| Root volume (after resize) | 10 GiB gp3 |
-| Termination protection | Enabled |
-| Stop protection | Enabled (then disabled to test) |
-| Region | `us-east-1` (N. Virginia) |
-
-The bootstrap script that installs and starts Apache is in [`user-data.sh`](user-data.sh).
+</div>
 
 ---
 
-## Key Concepts
+## Overview
 
-**Termination & stop protection.** Two independent safeguards against accidental loss. *Termination protection* blocks the instance from being deleted (an irreversible action — the instance and its data are gone). *Stop protection* blocks it from being stopped. Both are attributes you can toggle; while enabled, the corresponding action fails with a `disableApiStop` / `disableApiTermination` error until you explicitly turn the guard off. This is a simple but real operational control — protecting critical instances from a fat-fingered console click.
+Amazon EC2 provides resizable compute capacity in the cloud. This lab launches a web server from a **user-data bootstrap script**, monitors it, opens it to HTTP traffic through a **security group**, resizes both the instance and its disk, explores service limits, and exercises the guardrails that prevent accidental **stop and termination**.
 
-**Security group as a firewall — demonstrated, not just described.** This lab deliberately launches the instance with an *empty* inbound rule set, so the web page is unreachable at first even though Apache is running. Adding a single HTTP rule (port 80, from anywhere) is what makes it reachable. The point is to *see* the firewall doing its job: the server was fine the whole time; only the security group stood between it and the browser.
+**Duration:** ~35 minutes &nbsp;|&nbsp; **Region:** `us-east-1`
 
-**User data = automated provisioning.** The instance installs and configures Apache with no manual SSH login, via a boot-time script. This is the seed of infrastructure-as-code — repeatable, hands-off setup.
+### Objectives
+- Launch a web server with **termination protection** enabled
+- Monitor the instance (status checks, CloudWatch, system log, screenshot)
+- Modify the **security group** to allow HTTP (port 80)
+- Resize the **instance type** and **EBS volume**; enable **stop protection**
+- Explore EC2 **service limits**, then test stop protection and stop the instance
 
-**Stop vs. terminate (and what persists).** Stopping an instance shuts it down with no compute charge, but EBS storage is retained and charges continue. On restart it typically moves to a new host and gets a **new public IP**, but keeps its **private IP** and all EBS data. Terminating deletes the instance entirely. Resizing requires a stop first, because you can't change the hardware profile of a running instance.
+---
 
-**Monitoring & console visibility.** Status checks (system reachability + instance reachability), CloudWatch metrics, the **system log**, and the **instance screenshot** together let you verify health and diagnose problems even when you can't SSH in.
+## Architecture
+
+A single EC2 instance runs in a public subnet of the Lab VPC, inside a security group acting as its virtual firewall. A user-data script turns it into a working web server on first boot.
+
+<div align="center">
+  <img src="screenshots/architecture-ec2.png" alt="EC2 web server in a security group" width="380"/>
+  <br/><em>Figure 1 — EC2 web server inside a security group in one Availability Zone.</em>
+</div>
+
+> ⚠️ **Correction:** the AWS diagram labels the box **"IIS Web Server,"** but that's inaccurate for this build. IIS is Microsoft's *Windows* web server — this instance runs **Amazon Linux 2023**, and the user-data script installs **Apache (`httpd`)**. The running service is Apache, not IIS.
 
 ---
 
 ## Walkthrough
 
-### Task 1 — Launch the Instance (with protection)
+### Task 1 — Launch Your EC2 Instance
+Launch with termination protection and a user-data bootstrap.
 
-Launched `Web Server` (Amazon Linux 2023, t2.micro) into `PublicSubnet1` of the Lab VPC, with a public IP auto-assigned. During launch:
+```text
+Name:            Web Server        (tag Name = Web Server)
+AMI:             Amazon Linux 2023
+Instance type:   t2.micro          (1 vCPU, 1 GiB)
+Key pair:        vockey
+Network:         Lab VPC / PublicSubnet1  (auto-assign public IP)
+Security group:  Web Server security group  (remove default inbound rule)
+Advanced:        Termination protection = Enable
+```
 
-- Created `Web Server security group` and **removed the default inbound rule** — deliberately leaving the instance unreachable, to be fixed in Task 3.
-- Enabled **termination protection** under Advanced details.
-- Pasted the Apache bootstrap script into User data (see [`user-data.sh`](user-data.sh)).
+**User data** (runs once, as root, on first boot):
+```bash
+#!/bin/bash
+dnf install -y httpd
+systemctl enable httpd
+systemctl start httpd
+echo '<html><h1>Hello From Your Web Server!</h1></html>' > /var/www/html/index.html
+```
 
-Instance reached **Running** with **2/2 status checks passed**:
+<div align="center">
+  <img src="screenshots/01-instance-running.png" alt="Web Server running with 2/2 checks" width="760"/>
+  <br/><em>Web Server in the Running state with 2/2 status checks passed.</em>
+</div>
 
-![Instance running](screenshots/01-instance-running.png)
+### Task 2 — Monitor Your Instance
+Status checks, CloudWatch, system log, and instance screenshot.
 
-The Details pane confirms the placement: `Lab VPC`, `PublicSubnet1`, a public IP (`13.223.242.10`) for internet reachability, and a retained private IP (`10.0.1.12`).
+- **Status checks** tab — System + Instance reachability both pass.
+- **Monitoring** tab — CloudWatch metrics (basic 5-min by default; detailed 1-min optional).
+- **Get system log** — confirms the `httpd` package installed from user data.
+- **Get instance screenshot** — a console screenshot for troubleshooting when SSH/RDP is unavailable.
 
----
+<div align="center">
+  <img src="screenshots/02-system-log.png" alt="System log showing httpd install" width="760"/>
+  <br/><em>System log confirming the httpd package was installed via user data.</em>
+  <br/><br/>
+  <img src="screenshots/03-instance-screenshot.png" alt="Instance screenshot" width="500"/>
+  <br/><em>Instance console screenshot from Get instance screenshot.</em>
+</div>
 
-### Task 2 — Monitor the Instance
+### Task 3 — Security Group & Web Access
+The site is unreachable until port 80 is opened.
 
-Explored several ways to observe instance health without logging in:
+Pasting the **Public IPv4** into a browser first **fails** — no inbound rule allows HTTP. Add one:
+```text
+Type: HTTP   |   Port: 80   |   Source: Anywhere-IPv4 (0.0.0.0/0)
+```
+Refresh — the page now loads.
 
-- **Status checks** — both system reachability and instance reachability passed.
-- **Monitoring tab** — CloudWatch metrics (basic 5-minute monitoring on by default).
-- **System log** — console output confirming the bootstrap ran. The log shows the `httpd` packages being installed by cloud-init, ending in `Complete!` — proof the user-data script executed on first boot.
+<div align="center">
+  <img src="screenshots/04-web-page.png" alt="Hello From Your Web Server" width="640"/>
+  <br/><em>"Hello From Your Web Server!" after adding the HTTP inbound rule.</em>
+</div>
 
-![System log](screenshots/02-system-log.png)
+> **Security-group-as-firewall:** the server was running the whole time but unreachable because nothing permitted port 80. **Deny-by-default** — access exists only where explicitly allowed.
 
-- **Instance screenshot** — what the instance console would show if a screen were attached. Useful for diagnosing a host you can't reach over SSH/RDP.
+### Task 4 — Resize the Instance & Volume
+Stop the instance (required to resize), then:
+```text
+Instance type:  t2.micro → t2.small   (2× memory)
+Stop protection: Enable
+EBS volume:     8 GiB → 10 GiB
+```
+Start it again — now t2.small with a 10 GiB root volume.
 
-![Instance screenshot](screenshots/03-instance-screenshot.png)
+> On stop/start, an instance usually gets a **new public IPv4** but keeps its private IP and all EBS data.
 
----
-
-### Task 3 — Open the Security Group and Access the Server
-
-First hit the instance's public IP in a browser — it **failed to load**, even though Apache was running. That's the security group doing its job: with no inbound rule, port 80 traffic is blocked.
-
-Fixed it by editing `Web Server security group` and adding one inbound rule:
-- **Type:** HTTP
-- **Source:** Anywhere-IPv4
-
-Refreshed the browser and the page loaded:
-
-![Hello From Your Web Server](screenshots/04-web-page.png)
-
-This is the whole security-group lesson in one before/after: the only thing that changed was a single firewall rule.
-
----
-
-### Task 4 — Resize the Instance and Enable Stop Protection
-
-Scaling requires a stop first, since hardware can't change on a running instance.
-
-- **Stopped** the instance (no compute charge while stopped; EBS charges continue).
-- Changed instance type `t2.micro → t2.small` (doubling memory to 2 GiB).
-- Enabled **stop protection**.
-- Resized the root EBS volume `8 GiB → 10 GiB`.
-- **Started** the instance again — now with more memory and disk. (Note: on restart it received a new public IP but kept its private IP and all data.)
-
-<!-- SCREENSHOT: Change instance type dialog showing t2.small -->
-<!-- screenshots/06-resize-type.png -->
-
-<!-- SCREENSHOT: Modify volume dialog showing 10 GiB -->
-<!-- screenshots/07-resize-volume.png -->
-
----
-
-### Task 5 — Explore EC2 Limits
-
-Opened **Service Quotas → Amazon EC2** and filtered on "running on-demand" to review per-region instance limits. AWS enforces default limits on the number and type of On-Demand instances per region; account owners can request increases. A launch that would exceed the current limit is rejected — worth knowing before scaling out.
-
-<!-- SCREENSHOT: Service Quotas filtered on running on-demand -->
-<!-- screenshots/08-service-quotas.png -->
-
----
+### Task 5 — Explore EC2 Limits *(not graded)*
+Service Quotas → Amazon EC2 → search `running on-demand` to view per-region limits on how many/which instance types can run. Account owners can request increases.
 
 ### Task 6 — Test Stop Protection
-
-With stop protection enabled, attempting to stop the instance **failed** with:
-
-> Failed to stop the instance — the instance may not be stopped. Modify its `disableApiStop` instance attribute and try again.
-
-That error *is* the safeguard working. To actually stop the instance, disabled stop protection (Actions → Instance settings → Change stop protection → uncheck Enable), then stopped it successfully.
-
-<!-- SCREENSHOT: The "Failed to stop... disableApiStop" error message -->
-<!-- screenshots/09-stop-protection-error.png -->
-
-<!-- SCREENSHOT: Instance in Stopped state after disabling protection -->
-<!-- screenshots/10-instance-stopped.png -->
-
----
-
-## Result
-
-Final submission scored **25/25** — full marks across all six tasks: instance creation, system-log monitoring, the security group update, the resize, and stop-protection testing.
-
-![Lab grades](screenshots/05-grades.png)
-
----
-
-## Notes
-
-The Task 6 check ("Instance stopped on second try") initially came back 0/5 on the first submission — not because the stop-protection workflow was wrong (the protection triggered, was disabled, and the instance was stopped correctly), but because the lab was submitted before the instance had fully reached the **Stopped** state. AWS Academy's grader only credits some checks once ~5 minutes have passed since the action, and a stop transition (`stopping → stopped`) takes time. After confirming the instance showed **Stopped** and waiting out the grader's delay window, a resubmit brought the score to a full **25/25**.
-
-*Lesson logged for future labs: always confirm the target end-state and wait out the grader's ~5-minute delay window before submitting.*
-
----
-
-## Module Structure
-
+With stop protection on, **Stop** fails:
+```text
+The instance may not be stopped. Modify its 'disableApiStop' attribute and try again.
 ```
-lab-03-ec2-intro/
-├── README.md              # This walkthrough
-├── user-data.sh           # EC2 bootstrap script (Apache/httpd)
-├── diagrams/              # (reserved for reference diagrams)
-└── screenshots/           # Console captures documenting the build
-```
+Disable stop protection → Save → Stop again → **succeeds**.
+
+> **Grader timing:** some checks only credit ~5 minutes after the action. Submitting too early can score a task 0/5 even when done correctly — wait a couple minutes and re-submit. (This is what caught Task 6 on the first attempt; 5/5 on re-submission.)
 
 ---
 
-*Lab environment provided by AWS Academy. Console screenshots are my own captures from completing the lab.*
+## Key Takeaways
+
+- **Security groups are deny-by-default firewalls** — the site was unreachable until an explicit HTTP:80 rule was added.
+- **User data automates secure bootstrapping** — install, enable, start, publish, with no interactive login.
+- **Guardrails prevent costly mistakes** — termination and stop protection add deliberate friction against accidental destruction.
+- **Know your actual stack** — the diagram said IIS; the box ran Apache on Amazon Linux.
+- **Elasticity up and down** — instance type and EBS both resized on demand.
+- **Know the limits** — per-region service quotas cap running instances (capacity planning *and* spotting abnormal growth).
+
+---
+
+## Lab Result
+
+All graded checks passed — **Total score: 25 / 25**. (Task 5 has no graded check.)
+
+<div align="center">
+  <img src="screenshots/lab3-score-25-25.png" alt="Lab 3 submission report — 25/25" width="460"/>
+  <br/><em>AWS Academy submission report — instance, system log, security group, resize, stop protection.</em>
+</div>
+
+---
+
+<div align="center">
+<sub>
+
+**Atif Memon** · [cloud-security-labs](https://github.com/atifkaloodi1/cloud-security-labs) · [gravatar.com/atifmem](https://gravatar.com/atifmem)
+
+Part of the **CYB 222 — Linux Systems Administration & Security** AWS cloud module.
+
+</sub>
+</div>
